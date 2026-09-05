@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects Registry — Live Portfolio Sheet</title>
+<meta name="description" content="Live auto-updating registry of daily-built portfolio projects: titles, descriptions, hashtags and live links.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bd6'/%3E%3Cpath d='M9 23V9m7 14V13m7 10V16' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0f1117; --surface: #161a24; --surface-2: #1d2230;
+  --text: #e9ebf4; --muted: #98a0b6; --border: #262c3c;
+  --accent: #7c7cf0; --accent-soft: rgba(124,124,240,.14);
+  --green: #34c48c; --radius: 14px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 40px 22px 70px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.mark { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg,#5b5bd6,#06b6d4); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 22px rgba(91,91,214,.5); }
+h1 { font-size: 24px; margin: 0; letter-spacing: -.02em; }
+.sub { color: var(--muted); margin: 8px 0 26px; font-size: 14px; }
+.badge { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; }
+.badge .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--green); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.tablecard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 900px; }
+th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); position: sticky; top: 0; white-space: nowrap; }
+td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 14px; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface-2); }
+td.title { font-weight: 700; white-space: nowrap; }
+td.date { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.desc { color: var(--muted); min-width: 260px; max-width: 420px; }
+td.tags { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--accent); max-width: 260px; }
+td a { color: var(--accent); font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(124,124,240,.4); }
+td a:hover { border-bottom-color: var(--accent); }
+td.repo a { font-weight: 500; color: var(--muted); border-bottom-color: rgba(152,160,182,.35); }
+td.repo a:hover { color: var(--text); }
+.num { color: var(--muted); font-variant-numeric: tabular-nums; }
+footer { margin-top: 18px; color: var(--muted); font-size: 12.5px; }
+.error { background: var(--surface); border: 1px dashed var(--border); color: var(--muted); padding: 40px; text-align: center; border-radius: var(--radius); }
+@media (max-width: 640px) { h1 { font-size: 20px; } .wrap { padding: 26px 14px 50px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="24" height="24"><path d="M9 23V9m7 14V13m7 10V16" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></span>
+    <h1>Projects Registry</h1>
+    <span class="badge"><span class="dot"></span>Auto-updating</span>
+  </header>
+  <p class="sub">Live registry of daily-built portfolio projects — titles, descriptions, hashtags and live demo links. This sheet updates itself whenever a new project ships.</p>
+  <div class="tablecard" id="tablecard"><div class="error">Loading registry…</div></div>
+  <footer id="meta">Source of truth: <strong>projects-master.csv</strong> · maintained by the AutoCoder daily pipeline</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // Minimal RFC-4180-ish CSV parser (handles quoted fields with commas)
+  function parseCSV(text) {
+    var rows = [], row = [], field = "", inQ = false, i, ch;
+    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for (i = 0; i < text.length; i++) {
+      ch = text[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else { inQ = false; }
+        } else { field += ch; }
+      } else if (ch === '"') { inQ = true; }
+      else if (ch === ",") { row.push(field); field = ""; }
+      else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else { field += ch; }
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.length > 1 || (r[0] && r[0].trim() !== ""); });
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  fetch("projects-master.csv?v=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(function (text) {
+      var rows = parseCSV(text);
+      if (!rows.length) throw new Error("empty");
+      var head = rows[0];
+      var idx = {};
+      head.forEach(function (h, i) { idx[h.trim()] = i; });
+      var body = rows.slice(1);
+      var html = '<table><thead><tr>' +
+        '<th>#</th><th>Date</th><th>Title</th><th>Description</th><th>Hashtags</th><th>Live Link</th><th>Repo</th>' +
+        '</tr></thead><tbody>';
+      body.forEach(function (r, n) {
+        var get = function (k) { var i2 = idx[k]; return i2 === undefined ? "" : (r[i2] || ""); };
+        var live = get("Live Link").trim();
+        var repo = get("Repo Link").trim();
+        html += '<tr>' +
+          '<td class="num">' + (n + 1) + '</td>' +
+          '<td class="date">' + esc(get("Date")) + '</td>' +
+          '<td class="title">' + esc(get("Title")) + '</td>' +
+          '<td class="desc">' + esc(get("Description")) + '</td>' +
+          '<td class="tags">' + esc(get("Hashtags")) + '</td>' +
+          '<td>' + (/^https?:/.test(live) ? '<a href="' + esc(live) + '" target="_blank" rel="noopener">Open demo ↗</a>' : esc(live)) + '</td>' +
+          '<td class="repo">' + (/^https?:/.test(repo) ? '<a href="' + esc(repo) + '" target="_blank" rel="noopener">GitHub ↗</a>' : esc(repo)) + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById("tablecard").innerHTML = html;
+      document.getElementById("meta").innerHTML = '<strong>' + body.length + '</strong> projects registered · last refresh: ' + new Date().toLocaleString() + ' · Source of truth: <strong>projects-master.csv</strong> (this repo)';
+    })
+    .catch(function (e) {
+      document.getElementById("tablecard").innerHTML = '<div class="error">Could not load projects-master.csv — ' + esc(e.message) + '</div>';
+    });
+})();
+</script>
+</body>
+</html>
